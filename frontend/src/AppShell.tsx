@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { BrowserRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, HashRouter, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, BriefcaseBusiness, Check, Compass, FileText, LogOut, Menu, Plus, Sparkles, X } from 'lucide-react'
 import { apiFetch, supabase, type Session } from './supabase'
 import './tripdeep.css'
@@ -7,6 +7,8 @@ import './workflow.css'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 const CLOUD_AI_ENABLED = import.meta.env.VITE_CLOUD_AI_ENABLED === 'true'
+const PREVIEW_ONLY = import.meta.env.VITE_PREVIEW_ONLY === 'true'
+const AppRouter = PREVIEW_ONLY ? HashRouter : BrowserRouter
 
 type TripForm = {
   origin: string
@@ -87,12 +89,13 @@ const initialForm: TripForm = {
 }
 
 export default function AppShell() {
-  const [apiState, setApiState] = useState<'loading' | 'connected' | 'offline'>('loading')
+  const [apiState, setApiState] = useState<'loading' | 'connected' | 'offline'>(PREVIEW_ONLY ? 'offline' : 'loading')
   const [menuOpen, setMenuOpen] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
   const [authReady, setAuthReady] = useState(!supabase)
 
   useEffect(() => {
+    if (PREVIEW_ONLY) return
     let active = true
     apiFetch(`${API_BASE}/api/health`)
       .then((response) => {
@@ -135,7 +138,7 @@ export default function AppShell() {
     if (supabase) void supabase.auth.signOut()
   }
 
-  return <BrowserRouter>
+  return <AppRouter basename={PREVIEW_ONLY ? undefined : import.meta.env.BASE_URL}>
     <div className="app-shell">
       <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
         <div className="brand-lockup">
@@ -145,7 +148,7 @@ export default function AppShell() {
         </div>
         <div className="workspace-switcher">
           <span className="workspace-avatar">TD</span>
-          <span className="workspace-copy"><strong>Tripdeep workspace</strong><small>Personal account</small></span>
+          <span className="workspace-copy"><strong>Tripdeep workspace</strong><small>{PREVIEW_ONLY ? 'Static preview' : 'Personal account'}</small></span>
         </div>
         <div className="nav-label">YOUR WORKSPACE</div>
         <nav className="primary-nav" aria-label="Main navigation">
@@ -159,32 +162,34 @@ export default function AppShell() {
         </nav>
         <div className="sidebar-spacer" />
         <div className="help-card"><span className="help-icon"><BriefcaseBusiness size={17} /></span><div><strong>Plan with confidence</strong><span>One place for your trip details</span></div></div>
-        <div className="profile-row"><div className="profile-avatar">{session?.user.email?.slice(0, 1).toUpperCase() ?? 'P'}</div><div className="profile-copy"><strong>{session?.user.email ?? 'Local workspace'}</strong><span>{session ? 'Signed in' : 'Development account'}</span></div>{session && supabase && <button className="icon-button" aria-label="Sign out" title="Sign out" onClick={signOut}><LogOut size={16} /></button>}</div>
+        <div className="profile-row"><div className="profile-avatar">{session?.user.email?.slice(0, 1).toUpperCase() ?? 'P'}</div><div className="profile-copy"><strong>{session?.user.email ?? (PREVIEW_ONLY ? 'GitHub Pages preview' : 'Local workspace')}</strong><span>{session ? 'Signed in' : PREVIEW_ONLY ? 'No account or saved data' : 'Development account'}</span></div>{session && supabase && <button className="icon-button" aria-label="Sign out" title="Sign out" onClick={signOut}><LogOut size={16} /></button>}</div>
       </aside>
       {menuOpen && <button className="mobile-scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />}
       <main className="main-area">
         <header className="topbar">
           <button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMenuOpen(true)}><Menu size={20} /></button>
           <div className="breadcrumbs"><span>Workspace</span><span className="crumb-slash">/</span><strong><CurrentSection /></strong></div>
-          <div className="topbar-actions"><div className={`connection-pill ${apiState}`}><span className="connection-dot" />{apiState === 'connected' ? 'Ready to plan' : apiState === 'offline' ? 'API offline' : 'Connecting'}</div><div className="top-avatar">P</div></div>
+          <div className="topbar-actions"><div className={`connection-pill ${apiState}`}><span className="connection-dot" />{PREVIEW_ONLY ? 'Static preview' : apiState === 'connected' ? 'Ready to plan' : apiState === 'offline' ? 'API offline' : 'Connecting'}</div><div className="top-avatar">P</div></div>
         </header>
-        {apiState === 'offline' && <div className="system-banner"><AlertTriangle size={16} /><span>Trip services are unavailable. Check that the API service is running.</span></div>}
+        {PREVIEW_ONLY
+          ? <div className="system-banner"><AlertTriangle size={16} /><span>GitHub Pages hosts this static preview only. Sign-in, trip planning, saved trips, and document uploads need a backend and are disabled here.</span></div>
+          : apiState === 'offline' && <div className="system-banner"><AlertTriangle size={16} /><span>Trip services are unavailable. Check that the API service is running.</span></div>}
         <Routes>
           <Route path="/" element={<TripPlannerPage />} />
           <Route path="/trips" element={<TripPlannerPage />} />
           <Route path="/documents" element={<DocumentsPage />} />
           <Route path="*" element={<TripPlannerPage />} />
         </Routes>
-        <footer className="app-footer"><span>TRIPDEEP · TRAVEL PLANNER</span><span><i className="footer-dot" />Your travel details are private to your account</span></footer>
+        <footer className="app-footer"><span>TRIPDEEP · TRAVEL PLANNER</span><span><i className="footer-dot" />{PREVIEW_ONLY ? 'Static preview · trip details are not saved' : 'Your travel details are private to your account'}</span></footer>
       </main>
     </div>
-  </BrowserRouter>
+  </AppRouter>
 }
 
 function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState(PREVIEW_ONLY ? 'Document storage is unavailable in the static GitHub Pages preview.' : '')
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -241,6 +246,7 @@ function TripPlannerPage() {
   const [cloudAiStyleNotes, setCloudAiStyleNotes] = useState(false)
 
   const loadTrips = async () => {
+    if (PREVIEW_ONLY) return
     const response = await apiFetch(`${API_BASE}/api/trips`)
     if (!response.ok) throw new Error('Saved trips could not be loaded.')
     const data = await response.json() as { trips: SavedTrip[] }
@@ -248,6 +254,7 @@ function TripPlannerPage() {
   }
 
   useEffect(() => {
+    if (PREVIEW_ONLY) return
     let active = true
     apiFetch(`${API_BASE}/api/trips`)
       .then((response) => {
@@ -260,6 +267,7 @@ function TripPlannerPage() {
   }, [])
 
   const createPlan = async (tripId: string) => {
+    if (PREVIEW_ONLY) return
     setBusy(true)
     setError('')
     setPlan(null)
@@ -282,6 +290,7 @@ function TripPlannerPage() {
 
   const submitTrip = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (PREVIEW_ONLY) return
     setBusy(true)
     setPlan(null)
     setError('')
@@ -326,6 +335,7 @@ function TripPlannerPage() {
   }
 
   const openSavedTrip = async (trip: SavedTrip) => {
+    if (PREVIEW_ONLY) return
     setActiveTripId(trip.id)
     setError('')
     setPlan(null)
@@ -376,7 +386,7 @@ function TripPlannerPage() {
           <label className="field-label"><span>Food preference</span><select value={form.food_preference} onChange={(event) => change('food_preference', event.target.value)}><option value="">No preference</option>{['Vegetarian', 'Vegan', 'Jain', 'Halal'].map((preference) => <option key={preference}>{preference}</option>)}</select></label>
           {CLOUD_AI_ENABLED && <label className="checkbox-field"><input type="checkbox" checked={cloudAiStyleNotes} onChange={(event) => setCloudAiStyleNotes(event.target.checked)} /><span>Allow optional cloud AI clothing tips</span><small>Only coarse weather, suggested clothing and generic activity types are sent; not your destination, travel dates, names or uploaded documents.</small></label>}
           {error && <div className="form-error planner-error" role="alert"><AlertTriangle size={16} />{error}</div>}
-          <button className="primary-button execute-button plan-submit" disabled={busy} type="submit">{busy ? <><span className="spinner" />Planning your trip…</> : <><Sparkles size={16} />Create my trip plan</>}</button>
+          <button className="primary-button execute-button plan-submit" disabled={busy || PREVIEW_ONLY} type="submit">{PREVIEW_ONLY ? 'Planning unavailable in static preview' : busy ? <><span className="spinner" />Planning your trip…</> : <><Sparkles size={16} />Create my trip plan</>}</button>
         </form>
         {phase && <p className="trip-message planner-phase" role="status">{busy && <span className="spinner" />} {!busy && <Check size={14} />}{phase}</p>}
       </section>
@@ -385,7 +395,7 @@ function TripPlannerPage() {
         <div className="panel-topline"><div><h3>Saved trips</h3><p>Pick up where you left off.</p></div><span className="panel-counter">{trips.length}</span></div>
         {trips.length ? trips.slice(0, 8).map((trip) => <button className={`saved-trip ${activeTripId === trip.id ? 'selected' : ''}`} key={trip.id} disabled={busy} onClick={() => void openSavedTrip(trip)}>
           <span className="trip-route"><strong>{trip.origin}</strong><i /><strong>{trip.destination}</strong></span><small>{String(trip.request_data.start_date ?? '')} · {trip.status.replaceAll('_', ' ')}</small>
-        </button>) : <EmptyState title="Your trips will appear here" detail="Create a trip to save its details and plan." />}
+        </button>) : <EmptyState title={PREVIEW_ONLY ? 'Trip planning is not connected' : 'Your trips will appear here'} detail={PREVIEW_ONLY ? 'The GitHub Pages preview cannot create or save trips.' : 'Create a trip to save its details and plan.'} />}
         <div className="data-note"><span className="note-tag">SOURCED DETAILS</span><p>Forecasts and map listings are linked to their sources. Booking prices and availability are only shown when confirmed by a provider.</p></div>
       </aside>
     </div>
@@ -552,6 +562,7 @@ function DocumentsPage() {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
+    if (PREVIEW_ONLY) return
     Promise.all([
       apiFetch(`${API_BASE}/api/documents`).then((response) => {
         if (!response.ok) throw new Error('Saved documents could not be loaded.')
@@ -571,6 +582,7 @@ function DocumentsPage() {
 
   const upload = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (PREVIEW_ONLY) return
     const input = event.currentTarget.elements.namedItem('document') as HTMLInputElement
     const file = input.files?.[0]
     if (!file) return
@@ -615,7 +627,7 @@ function DocumentsPage() {
     <div className="page-title-row"><div><h1>Travel documents</h1><p className="page-intro">Keep your trip files together and review extracted information against the source.</p></div><span className="registered-count">{documents.length} STORED</span></div>
     <section className="form-panel upload-panel">
       <div className="panel-topline"><div><h3>Add a travel document</h3><p>PDF, DOCX, TXT, CSV, JSON, PNG, JPEG and WebP · 10 MB limit</p></div><FileText size={20} color="#4b8a71" /></div>
-      <form className="upload-form" onSubmit={(event) => void upload(event)}><label className="field-label"><span>Link to trip</span><select value={selectedTripId} onChange={(event) => setSelectedTripId(event.target.value)}><option value="">Do not link to a trip</option>{trips.map((trip) => <option key={trip.id} value={trip.id}>{trip.origin} to {trip.destination}</option>)}</select><small>Linked documents appear in that trip’s final plan.</small></label><label className="field-label"><span>Choose document</span><input name="document" type="file" required accept=".pdf,.docx,.txt,.csv,.json,.png,.jpg,.jpeg,.webp" /></label><button className="primary-button" disabled={busy} type="submit"><Plus size={16} />{busy ? 'Uploading…' : 'Upload document'}</button></form>
+      <form className="upload-form" onSubmit={(event) => void upload(event)}><label className="field-label"><span>Link to trip</span><select disabled={PREVIEW_ONLY} value={selectedTripId} onChange={(event) => setSelectedTripId(event.target.value)}><option value="">Do not link to a trip</option>{trips.map((trip) => <option key={trip.id} value={trip.id}>{trip.origin} to {trip.destination}</option>)}</select><small>Linked documents appear in that trip’s final plan.</small></label><label className="field-label"><span>Choose document</span><input disabled={PREVIEW_ONLY} name="document" type="file" required accept=".pdf,.docx,.txt,.csv,.json,.png,.jpg,.jpeg,.webp" /></label><button className="primary-button" disabled={busy || PREVIEW_ONLY} type="submit"><Plus size={16} />{PREVIEW_ONLY ? 'Upload unavailable in static preview' : busy ? 'Uploading…' : 'Upload document'}</button></form>
       {message && <p className="trip-message" role="status">{message}</p>}
     </section>
     <section className="stored-documents"><div className="panel-topline"><div><h3>Stored documents</h3><p>Extracted details should be checked against the source file.</p></div></div>{documents.length ? documents.map((document) => <article className="document-row" key={document.id}><span className="document-icon"><FileText size={17} /></span><div className="document-name"><strong>{document.original_name}</strong><small>{document.media_type} · {(document.size_bytes / 1024).toFixed(1)} KB · {document.trip_id ? trips.find((trip) => trip.id === document.trip_id)?.destination ?? 'Linked to trip' : 'Not linked to a trip'}</small></div><button className="text-button" type="button" onClick={() => void download(document)}>Download</button><span className="document-date">{new Date(document.created_at).toLocaleDateString()}</span></article>) : <EmptyState title="No documents stored" detail="Uploaded itinerary, receipt or policy files will be listed here." />}</section>

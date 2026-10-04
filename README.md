@@ -69,18 +69,17 @@ Hotel, transport, weather, tour-guide and insurer live inventory is not enabled 
 
 Open-Meteo's free API is rate-limited and intended for non-commercial use; attribute Open-Meteo and confirm its current terms before any commercial use. OpenStreetMap public endpoints have usage policies and no uptime guarantee. If public traffic reaches their limits, use a suitable licensed provider rather than rotating endpoints or overstating freshness.
 
-## Recommended free-tier deployment
+## GitHub Pages static preview
 
-This project has no Git history or GitHub remote initially. Create a **public GitHub repository** only after reviewing the staged file list; `.env`, local databases, uploaded files, Python environments, and frontend build artifacts are excluded by `.gitignore`. Keep every provider credential in deployment secrets, never in Vite variables except the Supabase publishable/anon key.
+The GitHub Pages deployment uses only this GitHub repository and GitHub Actions. It hosts the React frontend as a **static preview** at `https://patelparv3434.github.io/tripdeep/`; it does not run FastAPI, PostgreSQL, Supabase Auth, trip persistence, or document storage. Those API-dependent actions are intentionally disabled in this build rather than sending requests to missing services. Use a local setup or deploy the backend and database separately to enable them.
 
-1. Create a Supabase project. Enable email/password Auth, set the Auth site URL and allow the exact Cloudflare Pages redirect URL. Copy its project URL and publishable/anon key. Obtain a TLS-enabled Postgres connection string and a server-only service-role key.
-2. Run [`supabase/production-setup.sql`](supabase/production-setup.sql) in the Supabase SQL editor before exposing the API. It creates the private application tables and denies Supabase `anon`/`authenticated` Data API roles direct access. The application server connects with its secret database connection string.
-3. Run [`supabase/storage-setup.sql`](supabase/storage-setup.sql). It creates a private, 10 MB document bucket with user-folder policies. The API checks authenticated trip ownership and uses the service-role key only on the server. Never put that key in the frontend or GitHub.
-4. Connect the repository to Render using [`render.yaml`](render.yaml). Set `POSTGRES_DSN`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and the exact `CORS_ORIGINS` value in Render's environment settings. Production startup refuses local CORS origins or missing provider/database configuration.
-5. Connect the `frontend` directory to Cloudflare Pages with build command `npm ci && npm run build` and output directory `dist`. Add build variables `VITE_API_BASE_URL` (the Render service URL), `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`. Only after configuring the server-side Cloudflare AI credentials and `LLM_PROVIDER=cloudflare_workers_ai`, set `VITE_CLOUD_AI_ENABLED=true` to show the optional, per-trip opt-in. The free `*.pages.dev` hostname serves as the domain; no custom domain purchase is needed.
-6. Set `CORS_ORIGINS` to the exact Pages origin in Render and redeploy the API. Verify the public health endpoint, create an account, confirm it can only see its own trips, and upload/download a test document before sharing the link.
+The [`deploy-pages.yml`](.github/workflows/deploy-pages.yml) workflow builds the `frontend` directory and deploys it whenever frontend files change on `main`. In GitHub, open **Settings → Pages** and select **GitHub Actions** as the build and deployment source. The workflow sets the Vite base path for this repository and enables preview-only mode; do not add secrets for this static deployment.
 
-The free API and model offerings are subject to provider terms, quotas, and changes. Render may cold-start after idle time, Supabase free services can pause or impose resource caps, and free tiers do not replace backups, monitoring, account recovery or a security incident process. Do not upload real identity, medical, or insurance documents until you have reviewed the chosen providers' retention, region and privacy terms.
+GitHub Pages provides a free `github.io` hostname for public repositories. This deployment contains no backend, so the page is public and must not be used to store private user information or credentials.
+
+## Full production deployment (optional)
+
+To enable sign-in, trip planning, saved trips and documents, keep the GitHub repository as the code source and separately deploy the FastAPI API and PostgreSQL/Auth/Storage services. The previous Render and Supabase setup requires valid production secrets; never commit them or place a service-role key in `VITE_*` variables. Follow the provider setup documented in [`render.yaml`](render.yaml), [`supabase/production-setup.sql`](supabase/production-setup.sql), and [`supabase/storage-setup.sql`](supabase/storage-setup.sql). Free provider quotas and terms can change; review them before using real identity, medical, or insurance documents.
 
 ## Run With Docker Compose
 
