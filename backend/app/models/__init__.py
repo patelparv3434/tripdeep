@@ -1,0 +1,1 @@
+"""MongoDB collections are accessed through the async database dependency."""

@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tripdeep
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tripdeep-local}
+      POSTGRES_DB: tripdeep
+    ports:
+      - "5432:5432"
+    volumes:
+      - tripdeep-postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tripdeep -d tripdeep"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_BACKEND: postgres
+      POSTGRES_DSN: host=postgres port=5432 dbname=tripdeep user=tripdeep password=${POSTGRES_PASSWORD:-tripdeep-local}
+      ENVIRONMENT: development
+      CORS_ORIGINS: '["http://localhost:5173"]'
+      UPLOAD_DIRECTORY: /workspace/var/uploads
+    ports:
+      - "8000:8000"
+    volumes:
+      - tripdeep-uploads:/workspace/var/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  tripdeep-postgres:
+  tripdeep-uploads:

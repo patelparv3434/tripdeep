@@ -1,0 +1,1 @@
+"""Pydantic API and agent contracts."""

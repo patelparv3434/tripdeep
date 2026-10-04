@@ -1,0 +1,1 @@
+"""Optional provider contracts and adapters."""
